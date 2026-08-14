@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>手机评论情感分析 | 数据看板</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+:root {
+  --bg: #f0f2f5;
+  --bg-card: rgba(255,255,255,0.80);
+  --bg-card-solid: #ffffff;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
+  --border: rgba(0,0,0,0.06);
+  --accent: #6366f1;
+  --accent2: #8b5cf6;
+  --pos: #10b981;
+  --neg: #ef4444;
+  --blue: #3b82f6;
+  --amber: #f59e0b;
+  --teal: #14b8a6;
+  --shadow: 0 4px 24px rgba(0,0,0,0.06);
+  --shadow-hover: 0 12px 40px rgba(99,102,241,0.15);
+  --radius: 16px;
+}
+[data-theme="dark"] {
+  --bg: #0f172a;
+  --bg-card: rgba(30,41,59,0.80);
+  --bg-card-solid: #1e293b;
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-light: #64748b;
+  --border: rgba(255,255,255,0.08);
+  --shadow: 0 4px 24px rgba(0,0,0,0.3);
+  --shadow-hover: 0 12px 40px rgba(99,102,241,0.25);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  overflow-x: hidden;
+  transition: background 0.3s, color 0.3s;
+}
+
+/* Scroll Progress Bar */
+#progress-bar {
+  position: fixed; top: 0; left: 0; height: 3px; width: 0%;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899);
+  z-index: 9999; transition: width 0.1s;
+}
+
+/* Navbar */
+.navbar {
+  position: sticky; top: 0; z-index: 1000;
+  background: var(--bg-card);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+}
+.nav-inner {
+  max-width: 1280px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 60px;
+}
+.nav-logo {
+  font-size: 16px; font-weight: 800;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.nav-links { display: flex; gap: 4px; }
+.nav-links a {
+  padding: 8px 14px; border-radius: 8px;
+  font-size: 14px; font-weight: 500; color: var(--text-muted);
+  text-decoration: none; transition: all 0.2s;
+}
+.nav-links a:hover, .nav-links a.active {
+  color: var(--accent); background: rgba(99,102,241,0.1);
+}
+.nav-right { display: flex; align-items: center; gap: 12px; }
+.theme-toggle {
+  width: 40px; height: 40px; border: none; cursor: pointer;
+  border-radius: 10px; font-size: 18px;
+  background: var(--bg-card-solid); color: var(--text);
+  box-shadow: var(--shadow); transition: all 0.2s;
+  display: flex; align-items: center; justify-content: center;
+}
+.theme-toggle:hover { transform: scale(1.1); }
+
+/* Hero */
+.hero {
+  position: relative; overflow: hidden;
+  padding: 80px 24px 60px; text-align: center;
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #5b21b6 60%, #7c3aed 100%);
+  color: white;
+}
+.hero::before {
+  content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+  background: radial-gradient(circle at 30% 40%, rgba(139,92,246,0.15) 0%, transparent 50%),
+              radial-gradient(circle at 70% 60%, rgba(236,72,153,0.1) 0%, transparent 50%);
+  animation: float 8s ease-in-out infinite alternate;
+}
+@keyframes float { 0% { transform: translate(0,0); } 100% { transform: translate(-30px,20px); } }
+.hero-content { position: relative; z-index: 1; max-width: 800px; margin: 0 auto; }
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 16px; border-radius: 20px;
+  background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+  font-size: 13px; font-weight: 500; margin-bottom: 20px;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.hero h1 {
+  font-size: 42px; font-weight: 800; margin-bottom: 12px;
+  letter-spacing: -0.5px; line-height: 1.15;
+}
+.hero .subtitle { font-size: 18px; opacity: 0.85; margin-bottom: 28px; }
+.hero-meta {
+  display: flex; gap: 32px; justify-content: center; flex-wrap: wrap;
+  font-size: 14px; opacity: 0.7;
+}
+.hero-meta span { display: flex; align-items: center; gap: 6px; }
+
+/* Container */
+.container { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+
+/* Section */
+.section { padding: 56px 0; }
+.section-header {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 28px;
+}
+.section-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.section-title {
+  font-size: 24px; font-weight: 800; color: var(--text);
+}
+.section-subtitle { font-size: 14px; color: var(--text-muted); }
+
+/* Reveal animation */
+.reveal {
+  opacity: 0; transform: translateY(30px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+
+/* Metric Cards */
+.metrics-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+.metric-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px 24px;
+  text-align: center; position: relative; overflow: hidden;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+.metric-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: var(--card-color, var(--accent));
+}
+.metric-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-hover); }
+.metric-card .icon {
+  width: 48px; height: 48px; margin: 0 auto 12px;
+  border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  font-size: 24px; background: var(--card-bg, rgba(99,102,241,0.1));
+}
+.metric-card .value {
+  font-size: 40px; font-weight: 800; line-height: 1.1;
+  color: var(--card-color, var(--text));
+}
+.metric-card .label { font-size: 14px; color: var(--text-muted); margin-top: 6px; }
+.metric-card .sub { font-size: 12px; color: var(--text-light); margin-top: 4px; }
+
+/* Pipeline */
+.pipeline {
+  display: flex; align-items: center; justify-content: center;
+  flex-wrap: wrap; gap: 8px; margin-top: 8px;
+}
+.pipeline-step {
+  background: var(--bg-card); backdrop-filter: blur(20px);
+  border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px 20px; text-align: center; min-width: 140px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.pipeline-step:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); }
+.pipeline-step .step-icon { font-size: 28px; margin-bottom: 6px; }
+.pipeline-step .step-name { font-size: 14px; font-weight: 700; }
+.pipeline-step .step-desc { font-size: 11px; color: var(--text-light); margin-top: 2px; }
+.pipeline-arrow { font-size: 20px; color: var(--text-light); }
+
+/* Charts */
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.chart-card {
+  background: var(--bg-card); backdrop-filter: blur(20px);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 28px; transition: box-shadow 0.3s;
+}
+.chart-card:hover { box-shadow: var(--shadow-hover); }
+.chart-card.full { grid-column: 1 / -1; }
+.chart-card h3 { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.chart-card .desc { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+.chart-plot { width: 100%; }
+
+/* Findings */
+.findings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+.finding-card {
+  background: var(--bg-card); backdrop-filter: blur(20px);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 28px; position: relative; overflow: hidden;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+.finding-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); }
+.finding-card::before {
+  content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 5px;
+  background: var(--card-color, var(--accent));
+}
+.finding-card .num {
+  display: inline-block; padding: 2px 10px; border-radius: 6px;
+  font-size: 12px; font-weight: 700; margin-bottom: 10px;
+  background: var(--card-bg, rgba(99,102,241,0.1));
+  color: var(--card-color, var(--accent));
+}
+.finding-card .title { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.finding-card .desc { font-size: 14px; color: var(--text-muted); line-height: 1.7; }
+.finding-card .metric {
+  display: inline-block; margin-top: 12px; padding: 6px 14px;
+  border-radius: 8px; font-size: 14px; font-weight: 700;
+  background: var(--card-bg, rgba(99,102,241,0.1));
+  color: var(--card-color, var(--accent));
+}
+
+/* Sample Reviews */
+.review-tabs {
+  display: flex; gap: 8px; margin-bottom: 20px;
+}
+.review-tab {
+  padding: 10px 20px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--border); font-size: 14px; font-weight: 600;
+  background: var(--bg-card-solid); color: var(--text-muted);
+  transition: all 0.2s;
+}
+.review-tab.active { color: white; border-color: transparent; }
+.review-tab.active.pos { background: var(--pos); }
+.review-tab.active.neg { background: var(--neg); }
+.review-panel { display: none; }
+.review-panel.active { display: block; }
+.review-item {
+  background: var(--bg-card); backdrop-filter: blur(20px);
+  border: 1px solid var(--border); border-radius: 12px;
+  padding: 20px 24px; margin-bottom: 12px;
+  border-left: 4px solid var(--pos);
+}
+.review-item.neg { border-left-color: var(--neg); }
+.review-meta {
+  display: flex; gap: 16px; font-size: 12px; color: var(--text-light);
+  margin-bottom: 8px;
+}
+.review-meta .badge {
+  padding: 2px 8px; border-radius: 4px; font-weight: 700;
+}
+.review-text {
+  font-size: 14px; color: var(--text); line-height: 1.7;
+  max-height: 200px; overflow-y: auto; padding-right: 8px;
+}
+.review-text::-webkit-scrollbar { width: 4px; }
+.review-text::-webkit-scrollbar-thumb { background: var(--text-light); border-radius: 2px; }
+
+/* Footer */
+.footer {
+  text-align: center; padding: 40px 24px;
+  color: var(--text-muted); font-size: 14px;
+  border-top: 1px solid var(--border); margin-top: 40px;
+}
+.footer .footer-links { margin-bottom: 8px; display: flex; gap: 16px; justify-content: center; }
+.footer a { color: var(--accent); text-decoration: none; }
+
+/* Back to top */
+#back-top {
+  position: fixed; bottom: 24px; right: 24px;
+  width: 48px; height: 48px; border: none; cursor: pointer;
+  border-radius: 14px; font-size: 20px; z-index: 999;
+  background: var(--accent); color: white;
+  box-shadow: 0 4px 20px rgba(99,102,241,0.3);
+  opacity: 0; transform: scale(0.8); transition: all 0.3s;
+  display: flex; align-items: center; justify-content: center;
+}
+#back-top.visible { opacity: 1; transform: scale(1); }
+#back-top:hover { transform: scale(1.1); }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .charts-grid { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 30px; }
+  .nav-links { display: none; }
+  .pipeline-step { min-width: 120px; }
+}
+</style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="nav-inner">
+    <div class="nav-logo">SentimentScope</div>
+    <div class="nav-links">
+      <a href="#overview">概览</a>
+      <a href="#metrics">指标</a>
+      <a href="#method">方法</a>
+      <a href="#charts">图表</a>
+      <a href="#findings">发现</a>
+      <a href="#samples">样本</a>
+    </div>
+    <div class="nav-right">
+      <button class="theme-toggle" onclick="toggleTheme()" title="切换主题">&#9790;</button>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<header class="hero" id="overview">
+  <div class="hero-content">
+    <div class="hero-badge">&#128202; 交互式数据看板</div>
+    <h1>手机评论情感分析</h1>
+    <p class="subtitle">基于2322条手机商品评论的多维度情感挖掘与可视化</p>
+    <div class="hero-meta">
+      <span>&#128230; 数据来源: ChineseNlpCorpus</span>
+      <span>&#9999; 作者: 范思琪</span>
+      <span>&#128197; 2026-08-11</span>
+      <span>&#128269; 6种分析方法</span>
+    </div>
+  </div>
+</header>
+
+<!-- Metrics -->
+<section class="section" id="metrics">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="section-icon" style="background:rgba(59,130,246,0.1)">&#128202;</div>
+      <div>
+        <div class="section-title">核心指标</div>
+        <div class="section-subtitle">数据全貌一览</div>
+      </div>
+    </div>
+    <div class="metrics-grid">
+      <div class="metric-card reveal" style="--card-color:#3b82f6;--card-bg:rgba(59,130,246,0.1)">
+        <div class="icon">&#128172;</div>
+        <div class="value" data-target="2322" data-suffix="">0</div>
+        <div class="label">评论总数</div>
+        <div class="sub">手机类别</div>
+      </div>
+      <div class="metric-card reveal" style="--card-color:#10b981;--card-bg:rgba(16,185,129,0.1)">
+        <div class="icon">&#128077;</div>
+        <div class="value" data-target="50.1" data-suffix="%">0</div>
+        <div class="label">正向评论占比</div>
+        <div class="sub" id="pos-count">1164 条</div>
+      </div>
+      <div class="metric-card reveal" style="--card-color:#ef4444;--card-bg:rgba(239,68,68,0.1)">
+        <div class="icon">&#128078;</div>
+        <div class="value" data-target="49.9" data-suffix="%">0</div>
+        <div class="label">负向评论占比</div>
+        <div class="sub" id="neg-count">1158 条</div>
+      </div>
+      <div class="metric-card reveal" style="--card-color:#8b5cf6;--card-bg:rgba(139,92,246,0.1)">
+        <div class="icon">&#128221;</div>
+        <div class="value" data-target="104.2" data-suffix="">0</div>
+        <div class="label">平均评论长度</div>
+        <div class="sub">中位数 62.0 字符</div>
+      </div>
+      <div class="metric-card reveal" style="--card-color:#14b8a6;--card-bg:rgba(20,184,166,0.1)">
+        <div class="icon">&#127919;</div>
+        <div class="value" data-target="84.4" data-suffix="%">0</div>
+        <div class="label">SnowNLP准确率</div>
+        <div class="sub">相关系数 r=0.725</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Method Pipeline -->
+<section class="section" id="method" style="background:var(--bg-card-solid);">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="section-icon" style="background:rgba(139,92,246,0.1)">&#9881;</div>
+      <div>
+        <div class="section-title">分析方法流水线</div>
+        <div class="section-subtitle">6种方法层层递进，从描述到预测</div>
+      </div>
+    </div>
+    <div class="pipeline reveal">
+      <div class="pipeline-step"><div class="step-icon">&#128202;</div><div class="step-name">描述性统计</div><div class="step-desc">均值/分布/频次</div></div>
+      <div class="pipeline-arrow">&#8594;</div>
+      <div class="pipeline-step"><div class="step-icon">&#128293;</div><div class="step-name">假设检验</div><div class="step-desc">t检验 / 卡方</div></div>
+      <div class="pipeline-arrow">&#8594;</div>
+      <div class="pipeline-step"><div class="step-icon">&#129504;</div><div class="step-name">SnowNLP</div><div class="step-desc">情感打分</div></div>
+      <div class="pipeline-arrow">&#8594;</div>
+      <div class="pipeline-step"><div class="step-icon">&#128270;</div><div class="step-name">jieba分词</div><div class="step-desc">词频分析</div></div>
+      <div class="pipeline-arrow">&#8594;</div>
+      <div class="pipeline-step"><div class="step-icon">&#128255;</div><div class="step-name">相关性分析</div><div class="step-desc">Pearson矩阵</div></div>
+      <div class="pipeline-arrow">&#8594;</div>
+      <div class="pipeline-step"><div class="step-icon">&#129518;</div><div class="step-name">逻辑回归</div><div class="step-desc">预测建模</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Charts -->
+<section class="section" id="charts">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="section-icon" style="background:rgba(245,158,11,0.1)">&#128092;</div>
+      <div>
+        <div class="section-title">可视化分析</div>
+        <div class="section-subtitle">5张交互图表，悬停查看详情</div>
+      </div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card reveal">
+        <h3>图1: 情感分布</h3>
+        <div class="desc">正向与负向评论的占比对比</div>
+        <div id="chart1" class="chart-plot"></div>
+      </div>
+      <div class="chart-card reveal">
+        <h3>图2: 评论长度分布</h3>
+        <div class="desc">按长度分组的评论数量分布</div>
+        <div id="chart2" class="chart-plot"></div>
+      </div>
+      <div class="chart-card reveal">
+        <h3>图3: SnowNLP情感分数分布</h3>
+        <div class="desc">正负向评论的SnowNLP分数对比</div>
+        <div id="chart3" class="chart-plot"></div>
+      </div>
+      <div class="chart-card reveal">
+        <h3>图4: 高频关键词对比</h3>
+        <div class="desc">正负向评论Top 10高频词</div>
+        <div id="chart4" class="chart-plot"></div>
+      </div>
+      <div class="chart-card full reveal">
+        <h3>图5: 变量相关性热力图</h3>
+        <div class="desc">情感标签、评论长度、SnowNLP分数之间的相关系数矩阵</div>
+        <div id="chart5" class="chart-plot"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Findings -->
+<section class="section" id="findings" style="background:var(--bg-card-solid);">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="section-icon" style="background:rgba(236,72,153,0.1)">&#128161;</div>
+      <div>
+        <div class="section-title">核心发现</div>
+        <div class="section-subtitle">5条关键洞察，每条均有数据支撑</div>
+      </div>
+    </div>
+    <div class="findings-grid" id="findings-grid"></div>
+  </div>
+</section>
+
+<!-- Sample Reviews -->
+<section class="section" id="samples">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="section-icon" style="background:rgba(20,184,166,0.1)">&#128172;</div>
+      <div>
+        <div class="section-title">典型评论样本</div>
+        <div class="section-subtitle">正向与负向评论的代表性文本</div>
+      </div>
+    </div>
+    <div class="review-tabs reveal">
+      <div class="review-tab pos active" onclick="switchTab('pos')">正向评论</div>
+      <div class="review-tab neg" onclick="switchTab('neg')">负向评论</div>
+    </div>
+    <div class="reveal" id="review-content"></div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-links">
+    <a href="#overview">回到顶部</a>
+    <a href="https://github.com/SophonPlus/ChineseNlpCorpus" target="_blank">数据来源</a>
+    <a href="https://1lalala666.github.io/phone/" target="_blank">GitHub Pages</a>
+  </div>
+  <p>手机评论情感分析数据看板 | 数据来源: ChineseNlpCorpus online_shopping_10_cats</p>
+  <p>分析方法: 描述性统计 / t检验 / SnowNLP / jieba分词 / 相关性分析 / 逻辑回归</p>
+</footer>
+
+<button id="back-top" onclick="window.scrollTo({top:0,behavior:'smooth'})">&#8593;</button>
+
+<script>
+// === Data ===
+var DATA = {"meta": {"title": "手机评论情感分析数据看板", "subtitle": "基于2322条手机商品评论的多维度情感挖掘", "data_source": "ChineseNlpCorpus / online_shopping_10_cats", "author": "范思琪", "date": "2026-08-11"}, "stats": {"total_reviews": 2322, "positive_count": 1164, "negative_count": 1158, "positive_pct": 50.1, "negative_pct": 49.9, "avg_length": 104.2, "median_length": 62.0, "pos_avg_length": 113.5, "neg_avg_length": 94.9, "min_length": 2, "max_length": 1047, "t_stat": 3.274, "p_value": 0.0011, "snownlp_accuracy": 84.4, "snownlp_corr": 0.725, "pos_avg_snow": 0.823, "neg_avg_snow": 0.18, "lr_accuracy": 50.9, "lr_cv_mean": 51.0}, "length_dist": [{"group": "1-10", "count": 175}, {"group": "11-30", "count": 466}, {"group": "31-50", "count": 373}, {"group": "51-100", "count": 581}, {"group": "101-200", "count": 452}, {"group": "201-500", "count": 202}, {"group": "500+", "count": 73}], "hist_data": [{"x": 19.4, "count": 767}, {"x": 54.2, "count": 513}, {"x": 89.1, "count": 366}, {"x": 123.9, "count": 214}, {"x": 158.8, "count": 127}, {"x": 193.6, "count": 79}, {"x": 228.4, "count": 47}, {"x": 263.2, "count": 45}, {"x": 298.1, "count": 21}, {"x": 332.9, "count": 19}, {"x": 367.8, "count": 19}, {"x": 402.6, "count": 7}, {"x": 437.4, "count": 13}, {"x": 472.2, "count": 10}, {"x": 507.1, "count": 10}, {"x": 541.9, "count": 15}, {"x": 576.8, "count": 7}, {"x": 611.6, "count": 4}, {"x": 646.4, "count": 4}, {"x": 681.2, "count": 6}, {"x": 716.1, "count": 3}, {"x": 750.9, "count": 3}, {"x": 785.8, "count": 4}, {"x": 820.6, "count": 3}, {"x": 855.4, "count": 3}, {"x": 890.2, "count": 4}, {"x": 925.1, "count": 3}, {"x": 959.9, "count": 1}, {"x": 994.8, "count": 1}, {"x": 1029.6, "count": 4}], "snow_dist": [{"score": 0.05, "positive": 98, "negative": 783}, {"score": 0.15, "positive": 30, "negative": 65}, {"score": 0.25, "positive": 17, "negative": 47}, {"score": 0.35, "positive": 21, "negative": 39}, {"score": 0.45, "positive": 13, "negative": 41}, {"score": 0.55, "positive": 22, "negative": 41}, {"score": 0.65, "positive": 31, "negative": 20}, {"score": 0.75, "positive": 43, "negative": 25}, {"score": 0.85, "positive": 86, "negative": 23}, {"score": 0.95, "positive": 803, "negative": 74}], "word_freq": {"positive": [{"word": "功能", "count": 741}, {"word": "不错", "count": 533}, {"word": "支持", "count": 421}, {"word": "屏幕", "count": 373}, {"word": "效果", "count": 373}, {"word": "铃声", "count": 356}, {"word": "设计", "count": 210}, {"word": "方便", "count": 200}, {"word": "使用", "count": 199}, {"word": "外观", "count": 171}, {"word": "短信", "count": 168}, {"word": "MP3", "count": 159}, {"word": "显示", "count": 155}, {"word": "机子", "count": 153}, {"word": "手感", "count": 149}], "negative": [{"word": "功能", "count": 392}, {"word": "支持", "count": 367}, {"word": "不能", "count": 318}, {"word": "铃声", "count": 279}, {"word": "电池", "count": 261}, {"word": "短信", "count": 227}, {"word": "屏幕", "count": 207}, {"word": "不好", "count": 199}, {"word": "死机", "count": 186}, {"word": "问题", "count": 172}, {"word": "机子", "count": 164}, {"word": "效果", "count": 164}, {"word": "下载", "count": 161}, {"word": "声音", "count": 145}, {"word": "时候", "count": 144}]}, "corr_matrix": [[1.0, 0.068, 0.725], [0.068, 1.0, -0.022], [0.725, -0.022, 1.0]], "corr_labels": ["Sentiment Label", "Review Length", "SnowNLP Score"], "sample_reviews": {"positive": [{"评论内容": "20号收到蓝色论坛代购寄来的W810i。用了1天半，把用后感说一下。对新购机的起一个参考作用。　1.我选择的是黑色。黑色比较时候男人，连主题一起用黑色，非常酷！后面的摄像头没有机械基构，镜头露再外面，比较容易弄脏。不过，镜头这点脏不会构成取景模糊的。再所说屏幕，这个810的屏还是比较满意的。对比度和亮度笔W800有提高。色彩非常艳丽！只是分辨率只有176*220，仔细看还是看得出像素点。但是，不过已经很满意了(W900的屏幕亮度和对比度不够)。没用过240*320分辨率手机的用户都会满意的。还有一个就是亮度感应，非常好用，外面光线暗了键盘等酒会自动亮起来，反之就暗下去。很好！！2.系统软件。W810的软件大量采用了W900的要素。比如把资源管理器区分为手机和存储卡两部分、软件在线升级、快门声音选择等等，这些都是出自W900手笔。软件速度很快，没有滞后现象。得心应手，连开车发短消息都很方便了。还有，特别是W810的主题模式，随着9格菜单的变换，手机都会震动一下。很爽啊！3.铃声。W810的喇叭其实和W900、W800都是一样的。后面的三个孔只是装饰而已。中频高的铃声MP3都会出现暴音。只要开小半格音量就没事了。所以再选用铃声的时候，本人建议选用品质较好的MIDI铃声，因为索爱的喇叭对高音的还原非常好。个人认为虽然是单喇叭，但是铃声效果比三星D608要好。特别是音量。很有力度。4.摄像头和W800 W900一模一样。就不说了。5.MP3播放效果。和W800 W900一模一样。没什么改进。只是把耳机和转接线换成了黑色而已。不过我要说的是，对我这样的音乐发烧友来说，索爱现在walkman系列的入耳式耳机还是比较低档的。顶多是一个索尼EX51的料。高音和低频处理的都不是很好。换用SONY EX71后，效果马上体现出来了，特别是手动EQ以后。高音马上通透、低音软绵绵的，很是舒服！但是，这个MP3播放功能和专业MP3还是有区别的，至少我能听出来。6.关于智能手机和非智能手机的个人想法。智能手机非常好，可以装这个装那个，加蓝芽GPS还可以实现导航什么的。不过，象我这样手机玩多了，反而不喜欢智能手机了。因为每次都是买来新手机以后兴致很高，软N多的软件。觉得真不错啊，可时间长了，就不去摆弄那些玩意儿了。烦都烦死了，没兴趣去弄那些软件了。其实弄来弄去无非是QQ啊，字典啊，导航啊，游戏啊。智能手机相对来讲体积较大，夏天走路塞口袋不是很舒服。后来想想也就觉得没用了，又要开始换新手机啦", "评论长度": 1047, "snow_score": 0.0027646303916657455}, {"评论内容": "原来手机陪我过了三年 , 终于在 2006 年新年来临之际完成了使命 . 由于工作的特殊性就前往手机卖场选择手机 . 个人比较喜欢薄点的直板手机 , 进入卖场才发现直板手机的浪潮又回来了，看了摩记、诺记、三星、泛泰、飞利浦等众多国外品牌手机，没有看国产的品牌，不是不支持国货，而是功能太多，我不喜欢。终于还是在 MOTO 柜台留住脚步，看了 C139 、 C257 、 C261 这三款是 MOTO05 年 12 月新上的直板待机时间长的彩屏手机，挑来选去，最后决定买下 C261 带 30 万 VGA 摄像头的手机，人民币： 1160 元 /2 电 2 充 / 送个 MOTO 旅行包，下面是三天使用的感受： 外观：这款手机采用的是黑色磨沙外壳，质感不错，很上档次，但是对于手汗重的人不是太好，容易留下指纹印记。 屏幕： 65536 色 TFT128*160 分辨率，高亮显示的屏幕色彩足以让你成为吸引的目光。 键盘：红色背景灯加水晶键盘，很时尚、靓丽。 摄像头： 30 万像素 VGA 的摄像头、埋藏在机身后背里面，避免的了磕碰的麻烦。但是没有自拍镜，让人有点失望，、对于夜拍，也不知道是我不会用还是手机的问题，总是黑糊糊的，不是很清楚。 电池： 820 毫安，我把虚电用完后，经过 4 个小时的充电显示为充电完成，当时我很惊讶，因为以前都是说前三次充电都是 12 个小时以上，所以我即刻致电 MOTO800 ， 800 的接线小姐声音很好听（大家可以打电话听听），经过询问， MOTO800 说，这是 MOTO 的新技术，快速充电，可以放心使用，再次使用超过了 48 小时。对于这样一款彩屏带摄像头的手机来说，时间已经很长了，这点很满意。但是，也许是新机的原因，电池和 SIM 不是很好拆卸，后盖仍然没有摆脱 MOTO “三松”之一的后盖松，呵呵 音乐：一个字“太差了”，声音小，质感不好，也许是厂家为顾客提供更多的下载空间着想，不过在这个音乐菲菲的销售战役中，有点败笔之做。 操作：这款手机的运转速度是很快的，在各个指令间的调整均没有出现死机或者速度反映慢的情况。但是电话薄不是太好，分类设计不合理。如果你把电话号码存为重要，等你再次打开后只能看到重要类的电话号码，其他的看不到，开始我以为是我操作失误，最后才发现必须在分类中再找到要分组的类项才能看到需要的电话号码，这样个人觉得有些麻烦。 整体评价：优点：色彩艳丽、速度运转快、拍照效果清晰、键盘舒服、屏幕很大、手感不错、上网速度快", "评论长度": 1046, "snow_score": 0.9998834725255136}, {"评论内容": "我的BIRDD720是8月13号到手的！早在7月初我就把注意力从D610转向了现在使用的D720！一开始D720吸引我的是绿色的外壳，给人一种清新自然的感觉，后来岁着深入了解逐渐对其出色的性能所吸引！因此从7月末我就开始在各家商场寻找D720的身影。直到8月初的一天终于看到了真机！从那天起就不断的向家人施加压力，希望尽快得到这样一款手机。终于在8月13号我买到了！拿到机子的心情可谓无比激动，迅速回家装上电池用扬声器播放机子原带的4首歌曲！开机时只有2格电听了大约半个小时后改玩手机背后的闪光灯最后电池不堪重负光荣下岗了！！随后便是没日没夜的充电，在2块原装电池都3次充电满12小时后我开始了对D720的初次试用！（鉴于我只是个外行，不足之处多多包含）D720的屏幕是26万色的TFT彩屏。分辨率处在中流，但鲜艳的色彩却弥补了分辨率的不足。做为外行人，我首先先试用了小7的拍照功能，200W象素的CMOS摄像头的确表现出色，将照片分辨率设定在1600*1200后，发现拍出的照片十分清晰，比起我朋友的MOTOL7我要自豪多了！随后我去买了个512MB的MINISD卡在小7里下了一大堆东西便开始试用小7的MP3和MP4播放功能。小7的MP3播放功能总体表现不错，有摇滚乐、重低音、舞曲、古典乐、高音、宴会、流行音乐、原音乐8种均衡器，支持背景播放；3种播放器外观选择；MP3音乐库管理~~~移出、设定等!~比起MP3小7的视频播放要逊色些，只能支持3GP格式的文件，且分辨率只有220*166。在清晰度上要逊色很多！还有一点我不得不说的就是小7随机送的耳机实在太让我难以忍受！！建议用户可以自己加大些资金投入换一个好些的耳机！下面我来说下小7的接打电话的能力！听群里有人说小7的信号不好，当时心想反正功能那么多了信号不好也不是什么大问题也就没在意！昨天女友在KTV用我的小7接电话我到觉得小7的表现很出色！信号格始终保持在4格以上，总算是没给我丢脸！但是小7发短信时的字数却令我不能理解，为什么一条短信最多可以编辑670个字？现在的运营商足以多不也就允许80字的短信吗！至于短信的群发和彩信小弟还未使用过！小7定位为手机中的学习机，其英语通功能不得不提！小7支持的是英语通2.0。其中包括单词王 词霸。。。。。使用起来就我自己来说是十分方便的，尤其是其中包含了大学英语4级和6级的单词，对于在校大学生是十分有用的！使用者可以轻松的通过小7完成4.6级英语的单词储备，连学习机的钱都可以省了！", "评论长度": 1046, "snow_score": 0.9999999999999951}], "negative": [{"评论内容": "朋友观望了很久,终于在最近入手了欧水N72,由于朋友从未玩过塞斑系统,所以叫我帮忙.小弟终于有幸把玩真机了.以下是我的一点感受.N72给我的第一感觉是外观,外观觉得算得上是S60系统一、二版中比较出色的了.关机、开机、进入相应程序,速度还算中规中矩(对于S60系统一、二版而言).铃声方面:外放时声音不够大(个人感觉,或许是偶用696I用惯了的缘故),在安静的环境中还能够听见,要是在嘈杂一点的环境里肯定漏接电话现象严重,但音质在S60系统一、二版里还算是比较好的,只是层次感有所欠缺,感觉比较单薄.振动:铃声不行就得靠振动来提醒主人了,但让我感到以外和失望的是,N72的振动超弱,感觉像电力不行的电动机似的,别说靠它提醒主人了,放在手里都得仔细体会方能有所感受(有点夸张哈,但确实是超弱的振动).软件:试装了4个软件,前三个是在其他论坛里有人测试过的,肯定安装运行成功,第四个软是未经测试的,安装后不能运行,证明兼容性还有待提高.(呵呵,25%的不兼容哦,我运气好吧?)材质:N72拿在手里总有一种小心翼翼的感觉(可能是朋友的新机的缘故吧,弄坏了不好了),整机极易染上指纹,几个键被放在银色装饰边上,提别是C键给我的感觉是好胶囊壳感啊,好像感冒药外的胶囊壳一样.后面的镜头保护划盖轻薄感严重,像N3230的电池后盖一样.摄像:N72的眼睛还是够争气的,不愧为大陆行N70的升级版,拍照很清晰,即便是在晚上房间里,只要光线充足,一样可以获得比较好的拍照质量.拍照响应速度比N3230等有所提高,但还是有延迟现象,拍照的响应速度还不如有些国产手机.虽然滑盖开启拍摄很方面,但在手机锁闭键盘的情况下依旧可以开启拍摄功能,这点不够人性化,手机放在兜里时很容易误操作.红外:看了很多网站的功能详细表介绍,都说N72有红外,但偶在真机上用放大镜找了个遍都未发现,但手机里又有红外功能,真不明白N记怎么想的,换汤不换药啊,换了个外壳就叫新机种,哎,可怜的弱势群体啊—消费者又被N记强奸了一次.", "评论长度": 840, "snow_score": 0.9995727481406299}, {"评论内容": "用了半年的KG90，再这之前也谈到过不少缺陷。但是在这里我还是要把自己发现的更多的不够人性化的小缺陷一一列举！首先我要说的是电话本！1.大家都知道它不支持首字母查询！这个可以在每个人的名字前加上首字母然后就可以用英文查询，但是别扭的就是每个人的姓名前面都多出个字母来，看过去都不舒服！2.电话本的人性化功能太弱了，可以说它根本就不人性化！比如拨打的新电话不能直接加入原用的姓名当中，还要进入电话本找到那个人的姓名（又不支持中文首字母查询所以就更加麻烦）要用你的脑子记住11位的手机号，输入了中文找到了姓名可能你那11位的手机号又记不住了，又要重来！记住后进入原有的姓名编辑后然后就可以保存。3.就是大家现在也都有讨论过的，加17951的问题！在电话本中的姓名里有的是长途号所以我一直都喜欢加上17951。在拨打的时候也方便许多。但是用上了KG90问题就出现了，它加了17951后，朋友来点或是去电它都不能识别这个姓名了！4.信息大家都知道它输入很慢，但是我要告诉大家的是在你输入电话本中的姓名时它一点也不慢！在你要新添加备忘录时，输入的信息也一点不慢！但是当你要回朋友信息，或是发信息给朋友时，我告诉你一般不发什么信息的人到没什么，如果你一但真要发信息而且很急又不允许打电话时，有你受的！慢到要死人，可以用一句话来说，我等到花儿都谢了你的字却还没有出现！5.单键拨号大家也应该常常用吧？再这里我也要讲下它在KG90当中的缺陷！比如说你的一个姓名当中有三个不同的号码，你要在2键设置单键拨号，正好要选择的号码在那个姓名当中的第一个位子你很幸运的设置OK了。但是当你要在3上设置一个新的号码，而且这个号码又在你开始设置的那个姓名当中，这下你选到第二个位子的号码按保存，问题来了提示你已经设置！这时你唯一解决的办法就是添加一个新的一样的名字的，然后把你开始排在第二个的号码记下添到新的里面才可以添加进3键上！也许这还是跟电话本的那些不人性化的BUG有牵扯吧！", "评论长度": 826, "snow_score": 0.0}, {"评论内容": "硬件部分：1、手机很轻薄，拿到手后被同事们看到，都说样子不错，这么小巧的一个手机。的确，手机样子设计得不错，我买的是银色那款，上半部份采用了黑色边，与屏幕浑然一体，在视觉上感觉屏幕很大。2、屏幕材质已经决定了屏幕质量，但不知为什么屏幕的亮度和对比度是不可调的。3、没有红外和蓝牙，有什么好听的铃声没法很方便地下到手机上。不过可以用彩信的方法保存铃声。数据线不在标配里，听说是可以用数据线传音乐和图片的，没有买，没试过，这点内容保留。虽然在买前就知道了，但在实际中还是有些不方便的。4、号称64和弦的铃声，不知道为什么播放出来的效果，却没有同事那款索爱K700C的40和弦好听。有破音的现象，不过手机铃声的穿透力倒是蛮强的。不知道是不是我这机子单独的现象还是总体现象。5、内存容量在现在手机里来说是偏小，如果不存很多东西也可以将就着用用。6、说实话，33万像素的摄像头如同鸡肋。我宁可没有摄像头，把这块的成本用在屏幕的改良、内存的增大和外部通讯的增加上去。7、耳机不采用挂绳的设计，听收音机时不能将手机挂着，在冬天还好些，如果是夏天的时候就会有些不便。8、才用了二天，对待机时间和通话时间无权评说些什么。买来原装一电一充，再送一电一充，让我这个用惯了二块电板的人来说满意。软件部分：1、开机的速度比较慢，开机后过好一会儿才能读出SIM卡内的信息，开始时我以为我的SIM卡损坏了。2、摇杆最下方是通讯录，而右边的软键也是通讯录，有重复的感觉，将其中的一个改为通话记录应该更为方便些吧。3、拼音、笔画、英文、字母、标点这几项是用右软件键轮流切换，这点设计和以前的飞记826相同，所以用着也习惯，但对于用惯其它方法切换标点的人来说可能会感觉到不方便。4、长按数字键选字这一设计在最开始可能会稍不习惯，时间长了应该会习惯的。", "评论长度": 757, "snow_score": 0.8415892426962603}]}, "findings": [{"title": "情感分布均衡", "desc": "正向评论占50.1%，负向占49.9%，用户评价呈两极分化态势，无明显偏向。", "metric": "50.1% vs 49.9%"}, {"title": "正向评论更长", "desc": "正向评论平均113.5字符，负向94.9字符，t检验p=0.0011，差异显著。", "metric": "p=0.0011"}, {"title": "SnowNLP一致性高", "desc": "SnowNLP情感打分与人工标签的准确率达84.4%，相关系数r=0.725，工具可信度较高。", "metric": "r=0.725"}, {"title": "关注维度分化", "desc": "正向评论聚焦功能、屏幕、信号等具体体验；负向评论集中在缺失、故障、不能等问题，正负向关注点截然不同。", "metric": "Top词差异显著"}, {"title": "长度无法预测情感", "desc": "以评论长度预测情感的逻辑回归准确率仅50.9%，交叉验证51.0%，接近随机水平，说明长度不是情感的决定因素。", "metric": "50.9%"}]};
+
+// === Theme ===
+function toggleTheme() {
+  var cur = document.documentElement.getAttribute('data-theme');
+  var next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  var btn = document.querySelector('.theme-toggle');
+  btn.innerHTML = next === 'dark' ? '\u2600' : '\u9790';
+  localStorage.setItem('theme', next);
+  updateChartTheme();
+}
+(function() {
+  var saved = localStorage.getItem('theme') || 'light';
+  document.documentElement.setAttribute('data-theme', saved);
+  var btn = document.querySelector('.theme-toggle');
+  btn.innerHTML = saved === 'dark' ? '\u2600' : '\u9790';
+})();
+
+// === Scroll Progress ===
+window.addEventListener('scroll', function() {
+  var sc = document.documentElement.scrollTop;
+  var h = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+  document.getElementById('progress-bar').style.width = (sc/h*100) + '%';
+  document.getElementById('back-top').classList.toggle('visible', sc > 400);
+  // Nav active
+  var sections = document.querySelectorAll('section[id], header[id]');
+  var navLinks = document.querySelectorAll('.nav-links a');
+  var current = '';
+  sections.forEach(function(s) {
+    if (sc + 80 >= s.offsetTop) current = s.id;
+  });
+  navLinks.forEach(function(a) {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+});
+
+// === Reveal Animation ===
+var observer = new IntersectionObserver(function(entries) {
+  entries.forEach(function(e) {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      // Animate counters
+      e.target.querySelectorAll('.value[data-target]').forEach(function(el) {
+        animateCounter(el);
+      });
+    }
+  });
+}, { threshold: 0.1 });
+document.querySelectorAll('.reveal').forEach(function(el) { observer.observe(el); });
+
+function animateCounter(el) {
+  if (el.dataset.done) return;
+  el.dataset.done = '1';
+  var target = parseFloat(el.dataset.target);
+  var suffix = el.dataset.suffix || '';
+  var isInt = target % 1 === 0;
+  var cur = 0;
+  var steps = 40;
+  var inc = target / steps;
+  var timer = setInterval(function() {
+    cur += inc;
+    if (cur >= target) { cur = target; clearInterval(timer); }
+    el.textContent = (isInt ? Math.round(cur) : cur.toFixed(1)) + suffix;
+  }, 25);
+}
+
+// === Chart Theme ===
+function getChartLayout() {
+  var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  var textColor = dark ? '#cbd5e1' : '#1e293b';
+  var gridColor = dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  return {
+    font: { family: "SF Pro Display, Segoe UI, PingFang SC, sans-serif", size: 12, color: textColor },
+    paper_bgcolor: "rgba(0,0,0,0)",
+    plot_bgcolor: "rgba(0,0,0,0)",
+    margin: { t: 20, r: 20, b: 50, l: 50 },
+    xaxis: { gridcolor: gridColor, linecolor: gridColor, zerolinecolor: gridColor },
+    yaxis: { gridcolor: gridColor, linecolor: gridColor, zerolinecolor: gridColor },
+  };
+}
+var config = { responsive: true, displayModeBar: false };
+
+var posColor = "#10b981", negColor = "#ef4444";
+
+function renderCharts() {
+  var L = getChartLayout();
+
+  // Chart 1: Pie
+  Plotly.newPlot("chart1", [{
+    type: "pie",
+    labels: ["Positive", "Negative"],
+    values: [DATA.stats.positive_count, DATA.stats.negative_count],
+    marker: { colors: [posColor, negColor], line: { color: "rgba(255,255,255,0.5)", width: 2 } },
+    textinfo: "label+percent",
+    textposition: "outside",
+    textfont: { size: 14, weight: "bold" },
+    hole: 0.45,
+    hovertemplate: "<b>%{label}</b><br>Count: %{value}<br>Percent: %{percent}<extra></extra>",
+  }], Object.assign({}, L, { height: 340, showlegend: false }), config);
+
+  // Chart 2: Bar
+  var lenGroups = DATA.length_dist.map(function(d){ return d.group; });
+  var lenCounts = DATA.length_dist.map(function(d){ return d.count; });
+  Plotly.newPlot("chart2", [{
+    type: "bar",
+    x: lenGroups,
+    y: lenCounts,
+    marker: { color: "#6366f1", line: { width: 0 },
+      colorbar: { visible: false },
+      gradient: { type: "vertical", colorstops: [[0, "#818cf8"], [1, "#4f46e5"]] }
+    },
+    hovertemplate: "Length: %{x} chars<br>Count: %{y}<extra></extra>",
+  }], Object.assign({}, L, {
+    height: 340,
+    xaxis: { title: "Review Length (chars)", gridcolor: L.xaxis.gridcolor },
+    yaxis: { title: "Count", gridcolor: L.yaxis.gridcolor },
+  }), config);
+
+  // Chart 3: Grouped Bar
+  var snowScores = DATA.snow_dist.map(function(d){ return d.score; });
+  var snowPos = DATA.snow_dist.map(function(d){ return d.positive; });
+  var snowNeg = DATA.snow_dist.map(function(d){ return d.negative; });
+  Plotly.newPlot("chart3", [
+    { type: "bar", name: "Positive", x: snowScores, y: snowPos, marker: { color: posColor },
+      hovertemplate: "Score: %{x}<br>Positive: %{y}<extra></extra>" },
+    { type: "bar", name: "Negative", x: snowScores, y: snowNeg, marker: { color: negColor },
+      hovertemplate: "Score: %{x}<br>Negative: %{y}<extra></extra>" },
+  ], Object.assign({}, L, {
+    height: 340, barmode: "group",
+    xaxis: { title: "SnowNLP Score", gridcolor: L.xaxis.gridcolor },
+    yaxis: { title: "Count", gridcolor: L.yaxis.gridcolor },
+    legend: { x: 0.02, y: 0.98, bgcolor: "rgba(0,0,0,0)" },
+  }), config);
+
+  // Chart 4: Horizontal Bar
+  var posWords = DATA.word_freq.positive.slice(0, 10).map(function(d){ return d.word; }).reverse();
+  var posCounts = DATA.word_freq.positive.slice(0, 10).map(function(d){ return d.count; }).reverse();
+  var negWords = DATA.word_freq.negative.slice(0, 10).map(function(d){ return d.word; }).reverse();
+  var negCounts = DATA.word_freq.negative.slice(0, 10).map(function(d){ return d.count; }).reverse();
+  Plotly.newPlot("chart4", [
+    { type: "bar", name: "Positive", orientation: "h", y: posWords, x: posCounts, marker: { color: posColor },
+      hovertemplate: "Word: %{y}<br>Count: %{x}<extra></extra>" },
+    { type: "bar", name: "Negative", orientation: "h", y: negWords, x: negCounts, marker: { color: negColor },
+      hovertemplate: "Word: %{y}<br>Count: %{x}<extra></extra>" },
+  ], Object.assign({}, L, {
+    height: 420, barmode: "group",
+    xaxis: { title: "Frequency", gridcolor: L.xaxis.gridcolor },
+    margin: { t: 20, r: 20, b: 50, l: 80 },
+    legend: { x: 0.7, y: 0.02, bgcolor: "rgba(0,0,0,0)" },
+  }), config);
+
+  // Chart 5: Heatmap
+  var corr = DATA.corr_matrix;
+  var labels = DATA.corr_labels;
+  Plotly.newPlot("chart5", [{
+    type: "heatmap",
+    z: corr, x: labels, y: labels,
+    colorscale: [[0, "#dbeafe"], [0.25, "#93c5fd"], [0.5, "#3b82f6"], [0.75, "#6366f1"], [1, "#312e81"]],
+    zmin: -1, zmax: 1,
+    text: corr.map(function(row){ return row.map(function(v){ return v.toFixed(3); }); }),
+    texttemplate: "%{text}",
+    textfont: { size: 16, color: "white", weight: "bold" },
+    hovertemplate: "%{y} vs %{x}<br>r = %{z:.3f}<extra></extra>",
+  }], Object.assign({}, L, {
+    height: 320,
+    margin: { t: 20, r: 80, b: 60, l: 120 },
+  }), config);
+}
+
+function updateChartTheme() { renderCharts(); }
+renderCharts();
+
+// === Findings Cards ===
+var colors = [
+  { c: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
+  { c: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+  { c: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
+  { c: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+  { c: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+];
+var findingsHTML = '';
+DATA.findings.forEach(function(f, i) {
+  var col = colors[i % colors.length];
+  findingsHTML += '<div class="finding-card reveal" style="--card-color:' + col.c + ';--card-bg:' + col.bg + '">' +
+    '<div class="num">Finding #' + (i+1) + '</div>' +
+    '<div class="title">' + f.title + '</div>' +
+    '<div class="desc">' + f.desc + '</div>' +
+    '<div class="metric">' + f.metric + '</div>' +
+    '</div>';
+});
+var fg = document.getElementById('findings-grid');
+fg.innerHTML = findingsHTML;
+fg.querySelectorAll('.reveal').forEach(function(el) { observer.observe(el); });
+
+// === Sample Reviews ===
+function renderReviews(tab) {
+  var key = tab === 'pos' ? 'positive' : 'negative';
+  var reviews = DATA.sample_reviews[key] || [];
+  var isPos = tab === 'pos';
+  var html = '';
+  reviews.forEach(function(r, i) {
+    var len = r['\u8bc4\u8bba\u957f\u5ea6'] || r['review_len'] || '?';
+    var snow = r['snow_score'] != null ? r['snow_score'].toFixed(3) : '?';
+    var text = r['\u8bc4\u8bba\u5185\u5bb9'] || r['review'] || '';
+    html += '<div class="review-item' + (isPos ? '' : ' neg') + '">' +
+      '<div class="review-meta">' +
+        '<span class="badge" style="background:' + (isPos ? posColor : negColor) + ';color:white">' +
+          (isPos ? 'Positive' : 'Negative') + '</span>' +
+        '<span>Length: ' + len + ' chars</span>' +
+        '<span>SnowNLP: ' + snow + '</span>' +
+      '</div>' +
+      '<div class="review-text">' + text.substring(0, 500) + (text.length > 500 ? '...' : '') + '</div>' +
+    '</div>';
+  });
+  document.getElementById('review-content').innerHTML = html;
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.review-tab').forEach(function(t) { t.classList.remove('active'); });
+  var cls = tab === 'pos' ? 'pos' : 'neg';
+  document.querySelector('.review-tab.' + cls).classList.add('active');
+  renderReviews(tab);
+}
+renderReviews('pos');
+</script>
+
+</body>
+</html>

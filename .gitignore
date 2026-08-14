@@ -1,0 +1,17 @@
+# Temporary scripts
+_*.py
+
+# WorkBuddy internal
+.workbuddy/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Large data files (not needed for dashboard - data is embedded in HTML)
+_dashboard_data.json
+fig*.png
+
+# Original data files (keep clean versions)
+data.csv
+ai.txt
